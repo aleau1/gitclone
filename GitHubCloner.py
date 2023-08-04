@@ -16,21 +16,15 @@ class HTTPS_Pattern(AbstractRegularExpression):
     def pattern(self):
         return r"(?P<nose>^https\:)"
 
-class AtlassianURLCore_Pattern(AbstractRegularExpression):
-    @property
-    def pattern(self):
-        return r"\/\/(?P<core>\w+@\w+\.\w{2,3})"
-
 class GitHubURLCore_Pattern(AbstractRegularExpression):
     @property
     def pattern(self):
         return r"\/\/(?P<core>github.com)\/"
-    
 
 class URLTail_Pattern(AbstractRegularExpression):
     @property
     def pattern(self):
-        return r"\/(?P<tail>[\w+|\_|\/]+\.git$)"
+        return r"\/(?P<tail>[\w+|\_|\/|-]+\.git$)"
 
 from re import search as re_search
 from re import compile as re_compile
@@ -105,32 +99,13 @@ class BaseURLPatternValidator(PatternValidator):
         else:
             return False
 
-
-class AtlassianURLPatternValidator(BaseURLPatternValidator):
-    def verify_core_pattern(self, URL:str):
-        core_exists_within_url = False
-        if super().verify(URL, AtlassianURLCore_Pattern().pattern):
-            core_exists_within_url = True
-        return core_exists_within_url
-
 class GitHubURLPatternValidator(BaseURLPatternValidator):
     def verify_core_pattern(self, URL:str):
         core_exists_within_url = False
         if super().verify(URL, GitHubURLCore_Pattern().pattern):
             core_exists_within_url = True
         return core_exists_within_url
-    
 
-class AtlassianRepositoryURL:
-    def __init__(self, URL:str):
-        if AtlassianURLPatternValidator().verify_URL(URL):
-            self._GitRepositoryURL = URL
-        else:
-            raise ValueError()
-    @property
-    def repository(self) -> str:
-        return self._GitRepositoryURL
-    
 class GitHubRepositoryURL:
     def __init__(self, URL:str):
         if GitHubURLPatternValidator().verify_URL(URL):
@@ -142,30 +117,6 @@ class GitHubRepositoryURL:
         return self._GitRepositoryURL
 
 
-class AtlassianRepositoryFactory:
-    def __init__(self):
-        self.user_name = None
-        self.project_name = None
-
-    def __base_URL__(self):
-        return "https://<user_name>@bitbucket.org/<project_name>/<repository_name>"
-
-    def __URL_composer__(self, repository_name:str):
-        base_URL = self.__base_URL__()
-        if self.user_name != None and self.project_name != None:
-            base_URL = base_URL.replace('<user_name>', self.user_name)
-            base_URL = base_URL.replace('<project_name>', self.project_name)
-            base_URL = base_URL.replace('<repository_name>', repository_name)
-            return base_URL
-        else:
-            raise ValueError("Set corresponding properties first: self.user_name, self.project_name")
-
-    def __URL_generator__(self, repository_name:str):
-        URL = self.__URL_composer__(repository_name)
-        return AtlassianRepositoryURL(URL).repository
-
-    def list_generator(self, repo_names:list[str]):
-        return [self.__URL_generator__(repo) for repo in repo_names]
 
 class GitHubRepositoryFactory:
     def __init__(self):
@@ -190,43 +141,8 @@ class GitHubRepositoryFactory:
     def list_generator(self, repo_names:list[str]):
         return [self.__URL_generator__(repo) for repo in repo_names]
 
-
 from os.path import exists
 from os import system
-class AtlassianGitClone(AtlassianRepositoryFactory):
-    def __init__(self, user_name:str):
-        AtlassianRepositoryFactory.__init__(self)
-        self.URL_pool = []
-        self.repo_names = []
-        self.user_name = user_name
-
-    @staticmethod
-    def component_cloning_message(URL:str, repo_name:str):
-        print(f"Cloning {repo_name} @ {URL}")
-
-    @staticmethod
-    def component_already_installed_message(URL:str, repo_name:str):
-        print(f"Component {repo_name} @ {URL} is already cloned locally!")
-
-    def populate_URL_pool(self, project_name:str, repo_names:list[str]):
-        self.project_name = project_name
-        self.URL_pool += super().list_generator(repo_names)
-        self.repo_names += repo_names
-
-    def empty_URL_pool(self):
-        self.URL_pool = []
-        self.repo_names = []
-
-    def clone(self):
-        for URL, repo in zip(self.URL_pool, self.repo_names):
-            repo_folder = repo.split('.')[0]
-            if not exists(repo_folder):
-                self.component_cloning_message(URL,repo_folder)
-                system(f"git clone {URL}")
-            else:
-                self.component_already_installed_message(URL,repo_folder)
-                continue
-
 class GitHubGitClone(GitHubRepositoryFactory):
     def __init__(self, user_name:str):
         GitHubRepositoryFactory.__init__(self)
@@ -260,14 +176,8 @@ class GitHubGitClone(GitHubRepositoryFactory):
                 self.component_already_installed_message(URL,repo_folder)
                 continue
 
-
 from os.path import realpath
 from os import chdir
-class AtlassianCloner(AtlassianGitClone):
-    def __init__(self, user_name:str, path:str):
-        AtlassianGitClone.__init__(self, user_name)
-        chdir(realpath(path))
-
 class GitHubCloner(GitHubGitClone):
     def __init__(self, user_name:str, path:str):
         GitHubGitClone.__init__(self, user_name)
